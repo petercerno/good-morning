@@ -2,75 +2,100 @@
 Good Morning
 ============
 
-Good Morning is a simple Python module for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/). It will work as long as the structure of the csv responses from [financials.morningstar.com](http://financials.morningstar.com/) does not change.
+Good Morning is a simple Python module for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/). It will work as long as the structure of the responses from [financials.morningstar.com](http://financials.morningstar.com/) does not change.
 
 Bitcoin Donation Address: `15p4RbBxbfWYE91wcd3JzuJFj6e1jJeqyU`
 
 **Prerequisites:** 
 
-- [Python 2.7](https://www.python.org/download/releases/2.7/), [csv](https://docs.python.org/2/library/csv.html), [MySQLdb](http://sourceforge.net/projects/mysql-python/), [NumPy](http://www.numpy.org/), [Pandas](http://pandas.pydata.org/), [re](https://docs.python.org/2/library/re.html), [urllib2](https://docs.python.org/2/library/urllib2.html).
+- [Python 2.7](https://www.python.org/download/releases/2.7/), [BeautifulSoup](http://www.crummy.com/software/BeautifulSoup/bs4/doc/), [csv](https://docs.python.org/2/library/csv.html), [json](https://docs.python.org/2/library/json.html) [MySQLdb](http://sourceforge.net/projects/mysql-python/), [NumPy](http://www.numpy.org/), [Pandas](http://pandas.pydata.org/), [re](https://docs.python.org/2/library/re.html), [urllib2](https://docs.python.org/2/library/urllib2.html).
 
 Motivation
 ==========
 
-Good Morning is intended to be used as a tiny extension to [QSToolKit (QSTK)](http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit) library. By using [QSTK](http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit) you can easily download historical stock market data from [Yahoo Finance](http://finance.yahoo.com/). You can also download fundamental financial data from [Compustat](https://www.capitaliq.com/home/what-we-offer/information-you-need/financials-valuation/compustat-financials.aspx). However, most individuals and institutions do not have access to [Compustat](https://www.capitaliq.com/home/what-we-offer/information-you-need/financials-valuation/compustat-financials.aspx). Good Morning attempts to mitigate this limitation by providing a very simple Python interface for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/).
+Good Morning is intended to be used as an extension to [QSToolKit (QSTK)](http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit) library. By using [QSTK](http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit) you can easily download historical stock market data from [Yahoo Finance](http://finance.yahoo.com/). You can also download fundamental financial data from [Compustat](https://www.capitaliq.com/home/what-we-offer/information-you-need/financials-valuation/compustat-financials.aspx). However, most individuals and institutions do not have access to [Compustat](https://www.capitaliq.com/home/what-we-offer/information-you-need/financials-valuation/compustat-financials.aspx). Good Morning attempts to mitigate this limitation by providing a very simple Python interface for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/).
 
 Example
 =======
 
     import good_morning as gm
-    ticker = 'XNYS:IBM'
-    income_statement = gm.get_income_statement(ticker)
+    kr = gm.KeyRatiosDownloader()
+    kr_frames = kr.download('AAPL')
 
-The variable `income_statement` now holds an array of [`pandas.DataFrame`](http://pandas.pydata.org/pandas-docs/dev/generated/pandas.DataFrame.html)s containing the income statement items for the morningstar ticker [`XNYS:IBM`](http://financials.morningstar.com/income-statement/is.html?t=IBM&region=usa&culture=en-US).
+The variable `kr_frames` now holds an array of [`pandas.DataFrame`](http://pandas.pydata.org/pandas-docs/dev/generated/pandas.DataFrame.html)s containing the key ratios for the morningstar ticker [`AAPL`](http://financials.morningstar.com/ratios/r.html?t=AAPL&region=usa&culture=en-US).
 
-    print income_statement[0]
+    print kr_frames[0]
 
 Outputs:
 
-    Period                  2009   2010    2011    2012   2013   2014
-    IS Financials USD Mil                                            
-    Revenue                95758  99870  106916  104507  99751  97449
-    Cost of revenue        51973  53857   56778   54209  51246  49746
-    Gross profit           43785  46013   50138   50298  48505  47703
+    Period                            2005      2006      2007 ...
+    Key Financials USD                                         ...
+    Revenue USD Mil               13931.00  19315.00  24006.00 ...
+    Gross Margin %                   29.00     29.00     34.00 ...
+    Operating Income USD Mil       1650.00   2453.00   4409.00 ...
+    Operating Margin %               11.80     12.70     18.40 ...
+    Net Income USD Mil             1335.00   1989.00   3496.00 ...
+    Earnings Per Share USD            0.22      0.32      0.56 ...
+    ...
 
-We can easily upload the retrieved data to a MySQL database:
+If we specify the MySQL connection `conn` the retrieved data will be uploaded to the MySQL database:
 
     import MySQLdb
     conn = MySQLdb.connect(
         host = DB_HOST, user = DB_USER, passwd = DB_PASS, db = DB_NAME)
-    gm.upload_frames_to_db(conn, ticker, income_statement)
+    kr_frames = kr.download('AAPL', conn)
 
-All [`pandas.DataFrame`](http://pandas.pydata.org/pandas-docs/dev/generated/pandas.DataFrame.html)s in the array `income_statement` will be uploaded to separate database tables. In our case the following tables will be updated: `is_ebitda_usd_mil`, `is_eps`, `is_financials_usd_mil`, `is_operating_expenses_usd_mil`, `is_operating_income_usd_mil`.
+Every [`pandas.DataFrame`](http://pandas.pydata.org/pandas-docs/dev/generated/pandas.DataFrame.html) in the array `kr_frames` will be uploaded to a different database table. In our case the following tables will be created: 
 
-    SELECT * FROM `is_financials_usd_mil`;
+    `morningstar_key_balance_sheet_items_in_percent`
+    `morningstar_key_cash_flow_ratios`
+    `morningstar_key_efficiency_ratios`
+    `morningstar_key_eps_percent`
+    `morningstar_key_financials_usd`
+    `morningstar_key_liquidity_per_financial_health`
+    `morningstar_key_margins_percent_of_sales`
+    `morningstar_key_net_income_percent`
+    `morningstar_key_operating_income_percent`
+    `morningstar_key_profitability`
+    `morningstar_key_revenue_percent`
+
+For example, the following MySQL query:
+
+    SELECT * FROM `morningstar_key_cash_flow_ratios`;
 
 Outputs:
 
-      ticker      period    revenue  cost_of_revenue  gross_profit
-    XNYS:IBM  2009-12-31   95758.00         51973.00      43785.00
-    XNYS:IBM  2010-12-31   99870.00         53857.00      46013.00
-    XNYS:IBM  2011-12-31  106916.00         56778.00      50138.00
-    XNYS:IBM  2012-12-31  104507.00         54209.00      50298.00
-    XNYS:IBM  2013-12-31   99751.00         51246.00      48505.00
-    XNYS:IBM  2014-12-31   97449.00         49746.00      47703.00
+    ticker      period     ...
+      AAPL  2005-09-30  171.41  200.13  1.87  16.33  1.70
+      AAPL  2006-09-30  -12.43  -31.30  3.40   8.09  0.79
+      AAPL  2007-09-30  146.40  186.88  4.11  18.68  1.28
+      AAPL  2008-09-30   75.43   87.27  3.69  25.85  1.74
+    ...
 
-Available Methods
+Where the columns are:
+
+    ticker
+    period
+    operating_cash_flow_growth_percent_yoy
+    free_cash_flow_growth_percent_yoy
+    cap_ex_as_a_percent_of_sales
+    free_cash_flow_per_sales_percent
+    free_cash_flow_per_net_income
+
+Available Classes
 -----------------
 
-- `get_key_ratios(ticker)`
-- `get_income_statement(ticker)`
-- `get_balance_sheet(ticker)`
-- `get_cash_flow(ticker)`
-- `upload_frames_to_db(conn, ticker, frames)`
-- `upload_frame_to_db(conn, ticker, frame)`
+There are two classes in `good_morning`:
+
+- `KeyRatiosDownloader` - Used to download key ratios. Key ratios have the same structure across all Morningstar tickers.
+- `FinancialsDownloader` - Used to download financials (i.e. income statement, balance sheet, cash flow). Financials may differ in structure across the Morningstar tickers.
 
 LICENSE
 =======
 
 Good Morning is licensed to you under MIT.X11:
 
-Copyright (c) 2014 Peter Cerno
+Copyright (c) 2015 Peter Cerno
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 

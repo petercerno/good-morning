@@ -1,4 +1,4 @@
-# Copyright (c) 2014 Peter Cerno
+# Copyright (c) 2015 Peter Cerno
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,270 +21,414 @@
 """
 
 import csv
+import json
 import numpy as np
 import pandas as pd
 import re
 import urllib2
+from bs4 import BeautifulSoup
+from datetime import date
 
-def get_key_ratios(ticker):
-    """Downloads and returns an array of pandas.DataFrames containing
-    the key ratios for the given morningstar ticker.
+class KeyRatiosDownloader(object):
+    """Downloads key ratios from http://financials.morningstar.com/
     """
-    url = r"http://financials.morningstar.com/ajax/exportKR2CSV.html?" +\
-        r"&callback=?&t=" + ticker + r"&region=usa&culture=en-US&cur=USD"
-    response = urllib2.urlopen(url)
-    special_cases = []
-    tables = parse_tables(response, special_cases)
-    response_structure = [
-        # Original Name, New pandas.DataFrame Name
-        ('Financials', 'KR Financials'),
-        ('Key Ratios -> Profitability', 'KR Margins % of Sales'),
-        ('Key Ratios -> Profitability', 'KR Profitability'),
-        ('Key Ratios -> Growth', None),
-        ('Revenue %', 'KR Revenue %'),
-        ('Operating Income %', 'KR Operating Income %'),
-        ('Net Income %', 'KR Net Income %'),
-        ('EPS %', 'KR EPS %'),
-        ('Key Ratios -> Cash Flow', 'KR Cash Flow Ratios'),
-        ('Key Ratios -> Financial Health', 'KR Balance Sheet Items (in %)'),
-        ('Key Ratios -> Financial Health', 'KR Liquidity/Financial Health'),
-        ('Key Ratios -> Efficiency Ratios', 'KR Efficiency')]
-    return parse_frames(tables, response_structure)
+    def __init__(self, table_prefix = 'morningstar_'):
+        """Constructs the KeyRatiosDownloader instance.
+        table_prefix: Prefix of the MySQL tables.
+        """
+        self._table_prefix = table_prefix
 
-def get_income_statement(ticker):
-    """Downloads and returns an array of pandas.DataFrames containing
-    the income statement items for the given morningstar ticker.
-    """
-    url = r"http://financials.morningstar.com/ajax/ReportProcess4CSV.html?" +\
-        r"&t=" + ticker + r"&region=usa&culture=en-US&cur=" +\
-        r"&reportType=is&period=12&dataType=A&order=asc&columnYear=5" +\
-        r"&rounding=3&view=raw&denominatorView=raw&number=3"
-    response = urllib2.urlopen(url)
-    special_cases = ['Operating income', 'EBITDA']
-    tables = parse_tables(response, special_cases)
-    tables[0][0] = 'Financials'
-    response_structure = [
-        # Original Name, New pandas.DataFrame Name
-        ('Financials', 'IS Financials USD Mil'),
-        ('Operating expenses', 'IS Operating Expenses USD Mil'),
-        ('Operating income', 'IS Operating Income USD Mil'),
-        ('Earnings per share', 'IS EPS'),
-        ('Weighted average shares outstanding',
-         'IS Weighted Average Shares Outstanding'),
-        ('EBITDA', 'IS EBITDA USD Mil')]
-    return parse_frames(tables, response_structure)
+    def download(self, ticker, conn = None):
+        """Downloads and returns an array of pandas.DataFrames containing
+        the key ratios for the given Morningstar ticker. If the MySQL
+        connection is specified then the downloaded key ratios are uploaded
+        to the MySQL database.
+        ticker: Morningstar ticker.
+        conn: MySQLdb connection.
+        """
+        url = r"http://financials.morningstar.com/ajax/exportKR2CSV.html?" +\
+            r"&callback=?&t=" + ticker + r"&region=usa&culture=en-US&cur=USD"
+        response = urllib2.urlopen(url)
+        tables = self._parse_tables(response)
+        response_structure = [
+            # Original Name, New pandas.DataFrame Name
+            ('Financials', 'Key Financials'),
+            ('Key Ratios -> Profitability', 'Key Margins % of Sales'),
+            ('Key Ratios -> Profitability', 'Key Profitability'),
+            ('Key Ratios -> Growth', None),
+            ('Revenue %', 'Key Revenue %'),
+            ('Operating Income %', 'Key Operating Income %'),
+            ('Net Income %', 'Key Net Income %'),
+            ('EPS %', 'Key EPS %'),
+            ('Key Ratios -> Cash Flow', 'Key Cash Flow Ratios'),
+            ('Key Ratios -> Financial Health',
+                'Key Balance Sheet Items (in %)'),
+            ('Key Ratios -> Financial Health',
+                'Key Liquidity/Financial Health'),
+            ('Key Ratios -> Efficiency Ratios', 'Key Efficiency Ratios')]
+        frames = self._parse_frames(tables, response_structure)
+        currency = re.match('^.* ([A-Z]+) Mil$', frames[0].index[0]).group(1)
+        frames[0].index.name += ' ' + currency
+        if conn: self._upload_frames_to_db(ticker, frames, conn)
+        return frames
 
-def get_balance_sheet(ticker):
-    """Downloads and returns an array of pandas.DataFrames containing
-    the balance sheet items for the given morningstar ticker.
-    """
-    url = r"http://financials.morningstar.com/ajax/ReportProcess4CSV.html?" +\
-        r"&t=" + ticker + r"&region=usa&culture=en-US&cur=&reportType=bs" +\
-        r"&period=12&dataType=A&order=asc&columnYear=5&rounding=3&view=raw" +\
-        r"&denominatorView=raw&number=3"
-    response = urllib2.urlopen(url)
-    special_cases = [
-        'Total assets',
-        'Total liabilities and stockholders\' equity',
-        'Total liabilities']
-    tables = parse_tables(response, special_cases)
-    tables[0][0] = 'Balance Sheet'
-    response_structure = [
-        # Original Name, New pandas.DataFrame Name
-        ('Balance Sheet', 'BS Balance Sheet USD Mil'),
-        ('Cash', 'BS Cash USD Mil'),
-        ('"Property, plant and equipment"',
-         'BS Property, Plant and Equipment USD Mil'),
-        ('Total assets', 'BS Total Assets USD Mil'),
-        ('Current liabilities', 'BS Current Liabilities USD Mil'),
-        ('Non-current liabilities', 'BS Non-Current Liabilities USD Mil'),
-        ('Total liabilities', 'BS Total Liabilities USD Mil'),
-        ('Stockholders\' equity', 'BS Stockholders Equity USD Mil'),
-        ('Total liabilities and stockholders\' equity',
-         'BS Total Liabilities and Stockholders Equity USD Mil')]
-    return parse_frames(tables, response_structure)
-
-def get_cash_flow(ticker):
-    """Downloads and returns an array of pandas.DataFrames containing
-    the cash flow items for the given morningstar ticker.
-    """
-    url = r"http://financials.morningstar.com/ajax/ReportProcess4CSV.html?" +\
-        r"&t=" + ticker + r"&region=usa&culture=en-US&cur=&reportType=cf" +\
-        r"&period=12&dataType=A&order=asc&columnYear=5&rounding=3&view=raw" +\
-        r"&denominatorView=raw&number=3"
-    response = urllib2.urlopen(url)
-    special_cases = []
-    tables = parse_tables(response, special_cases)
-    tables[0][0] = 'Cash Flow'
-    response_structure = [
-        # Original Name, New pandas.DataFrame Name
-        ('Cash Flow', 'CF Cash Flow USD Mil'),
-        ('Cash Flows From Operating Activities',
-         'CF Cash Flows From Operating Activities USD Mil'),
-        ('Cash Flows From Investing Activities',
-         'CF Cash Flows From Investing Activities USD Mil'),
-        ('Cash Flows From Financing Activities',
-         'CF Cash Flows From Financing Activities USD Mil'),
-        ('Free Cash Flow', 'CF Free Cash Flow USD Mil')]
-    return parse_frames(tables, response_structure)
-
-def upload_frames_to_db(conn, ticker, frames):
-    """Uploads the given array of pandas.DataFrames to the MySQL database.
-    conn: MySQLdb connection.
-    ticker: morningstar ticker.
-    frames: array of pandas.DataFrames to be uploaded.
-    """
-    for frame in frames:
-        upload_frame_to_db(conn, ticker, frame)
-
-def upload_frame_to_db(conn, ticker, frame):
-    """Uploads the given pandas.DataFrame to the MySQL database table (with
-    name based on the name of the frame).
-    conn: MySQLdb connection.
-    ticker: morningstar ticker.
-    frame: pandas.DataFrames to be uploaded.
-    """
-    db_execute(conn, get_db_create_table(frame))
-    db_execute(conn, get_db_replace_values(frame, ticker))
-
-def parse_tables(response, special_cases):
-    """Parses the given csv response from financials.morningstar.com.
-    Returns an array of pairs, where the first item is the name of the table
-    (extracted from the response) and the second item is the corresponding
-    pandas.DataFrame table containing the data.
-    response: csv response from financials.morningstar.com.
-    special_cases: array of names that we want to put to separate tables.
-    """
-    # Regex pattern used to recognize csv lines containing financial data.
-    num_commas = 5
-    pat_commas = r'(.*,){%d,}' % num_commas
-    # Resulting array of pairs (table_name, table_frame).
-    tables = []
-    table_name = None
-    table_rows = None
-    for line in response:
-        line = line.strip()
-        for special_case in special_cases:
-            if line.startswith(special_case):
-                tables.append([table_name, pd.DataFrame(table_rows)])
+    def _parse_tables(self, response):
+        """Parses the given csv response from financials.morningstar.com.
+        Returns an array of pairs, where the first item is the name of the
+        table (extracted from the response) and the second item is the
+        corresponding pandas.DataFrame table containing the data.
+        response: Csv response from financials.morningstar.com.
+        """
+        # Regex pattern used to recognize csv lines containing financial data.
+        num_commas = 5
+        pat_commas = r'(.*,){%d,}' % num_commas
+        # Resulting array of pairs (table_name, table_frame).
+        tables = []
+        table_name = None
+        table_rows = None
+        for line in response:
+            line = line.strip()
+            match = re.match(pat_commas, line)
+            if match:
+                for row in csv.reader([line]):
+                    table_rows.append(row)
+            else:
+                if table_name and table_rows:
+                    tables.append([table_name, pd.DataFrame(table_rows)])
+                if line != '':
+                    table_name = line
                 table_rows = []
-                table_name = special_case
-                break
-        match = re.match(pat_commas, line)
-        if match:
-            for row in csv.reader([line]):
-                table_rows.append(row)
-        else:
-            if table_name and table_rows:
-                tables.append([table_name, pd.DataFrame(table_rows)])
-            if line != '':
-                table_name = line
-            table_rows = []
-    if table_name and table_rows:
-        tables.append([table_name, pd.DataFrame(table_rows)])
-    return tables
+        if table_name and table_rows:
+            tables.append([table_name, pd.DataFrame(table_rows)])
+        return tables
 
-def parse_frames(tables, response_structure):
-    """Returns the array of processed pandas.DataFrames based on the original
-    array of tables and the special response_structure array.
-    tables: original array of tables (obtained from the parse_tables method).
-    response_structure: array of pairs (expected table name, new name assigned
-        to the corresponding (processed) pandas.DataFrame).
-    """
-    period_start = tables[0][1].ix[0][1]
-    period_freq = 'Y'
-    frames = []
-    for index, (check_name, frame_name) in enumerate(response_structure):
-        if frame_name:
-            frame = check_frame(tables[index], check_name, frame_name, 
-                                period_start, period_freq)
-            if (frame is not None and frame.index.size > 0):
-                frames.append(frame)
-    return frames
+    def _parse_frames(self, tables, response_structure):
+        """Returns an array of processed pandas.DataFrames based on the
+        original array of tables and the special response_structure array.
+        tables: Original array of tables (obtained from the _parse_tables).
+        response_structure: Array of pairs (expected table name, new name
+            assigned to the corresponding (processed) pandas.DataFrame).
+        """
+        period_start = tables[0][1].ix[0][1]
+        period_month = pd.datetime.strptime(period_start, '%Y-%m').month
+        period_freq = pd.datetools.YearEnd(month=period_month)
+        frames = []
+        for index, (check_name, frame_name) in enumerate(response_structure):
+            if frame_name and tables[index][0] == check_name:
+                frame = self._process_frame(
+                    tables[index][1], frame_name, period_start, period_freq)
+                if (frame is not None and frame.index.size > 0):
+                    frames.append(frame)
+        return frames
 
-def check_frame(table, check_name, frame_name, period_start, period_freq='Y'):
-    """If the given table has the required (expected) name, returns a processed
-    pandas.DataFrame based on the original table. Otherwise, returns None.
-    table: pair (table_name, table_frame).
-    check_name: expected table name.
-    frame_name: new name assigned to the new (processed) pandas.DataFrame.
-    period_start: start of the period.
-    period_freq: frequency of the period.
-    """
-    if table[0] == check_name:
-        return process_frame(table[1], frame_name, period_start, period_freq)
-    return None
+    def _process_frame(self, frame, frame_name, period_start, period_freq):
+        """Returns a processed pandas.DataFrame based on the original frame.
+        frame: Original pandas.DataFrame to be processed.
+        frame_name: New name assigned to the new (processed) pandas.DataFrame.
+        period_start: Start of the period.
+        period_freq: Frequency of the period.
+        """
+        output_frame = frame.set_index(frame[0])
+        del output_frame[0]
+        output_frame.index.name = frame_name
+        output_frame.columns = pd.period_range(period_start,
+            periods=len(output_frame.ix[0]), freq=period_freq)
+        output_frame.columns.name = 'Period'
+        if re.match(r'^\d{4}-\d{2}$', output_frame.ix[0][0]):
+            output_frame.drop(output_frame.index[0], inplace=True)
+        output_frame.replace(',', '', regex=True, inplace=True)
+        output_frame.replace('^\s*$', 'NaN', regex=True, inplace=True)
+        return output_frame.astype(float)
 
-def process_frame(frame, frame_name, period_start, period_freq='Y'):
-    """Returns a new (processed) pandas.DataFrame based on the original frame.
-    frame: original pandas.DataFrame to be processed.
-    frame_name: new name assigned to the new (processed) pandas.DataFrame.
-    period_start: start of the period.
-    period_freq: frequency of the period.
-    """
-    output_frame = frame.set_index(frame[0])
-    del output_frame[0]
-    output_frame.index.name = frame_name
-    output_frame.columns = pd.period_range(period_start,
-        periods=len(output_frame.ix[0]), freq=period_freq)
-    output_frame.columns.name = 'Period'
-    if re.match(r'^\d{4}-\d{2}$', output_frame.ix[0][0]):
-        output_frame.drop(output_frame.index[0], inplace=True)
-    output_frame.replace(',', '', regex=True, inplace=True)
-    output_frame.replace('^\s*$', 'NaN', regex=True, inplace=True)
-    return output_frame.astype(float)
+    def _upload_frames_to_db(self, ticker, frames, conn):
+        """Uploads the given array of pandas.DataFrames to the MySQL database.
+        ticker: Morningstar ticker.
+        frames: Array of pandas.DataFrames to be uploaded.
+        conn: MySQLdb connection.
+        """
+        for frame in frames:
+            table_name = self._get_db_table_name(frame)
+            if not _db_table_exists(table_name, conn):
+                _db_execute(self._get_db_create_table(frame), conn)
+            _db_execute(self._get_db_replace_values(ticker, frame), conn)
 
-def get_db_name(name):
-    """Returns a new (cleaned) name that can be used in a MySQL database.
-    name: original name.
-    """
-    name = name.lower()\
-        .replace('/', ' per ')\
-        .replace('&', ' and ')\
-        .replace('%', ' percent ')
-    name = re.sub(r'[^a-z0-9]', ' ', name)
-    name = re.sub(r'\s+', ' ', name).strip()
-    return name.replace(' ', '_')
+    def _get_db_name(self, name):
+        """Returns a new (cleaned) name that can be used in a MySQL database.
+        name: Original name.
+        """
+        name = name.lower()\
+            .replace('/', ' per ')\
+            .replace('&', ' and ')\
+            .replace('%', ' percent ')
+        name = re.sub(r'[^a-z0-9]', ' ', name)
+        name = re.sub(r'\s+', ' ', name).strip()
+        return name.replace(' ', '_')
 
-def get_db_table_name(frame):
-    """Returns the MySQL TABLE name for the given pandas.DataFrame.
-    frame: pandas.DataFrame.
-    """
-    return "`%s`" % get_db_name(frame.index.name)
-    
-def get_db_create_table(frame):
-    """Returns the MySQL CREATE TABLE statement for the given pandas.DataFrame.
-    frame: pandas.DataFrame.
-    """
-    columns = ',\n'.join(['  `%s` DECIMAL(20,5) DEFAULT NULL COMMENT "%s"' %\
-        (get_db_name(name), name) for name in frame.index.values])
-    return \
-      'CREATE TABLE IF NOT EXISTS %s (\n' % get_db_table_name(frame) +\
-      '  `ticker` VARCHAR(50) NOT NULL COMMENT "Exchange:Ticker",\n' +\
-      '  `period` DATE NOT NULL COMMENT "Period",\n' +\
-      '%s,\n' % columns +\
-      '  PRIMARY KEY USING BTREE (`ticker`, `period`))\n' +\
-      'ENGINE = MyISAM\n' +\
-      'COMMENT = "%s"' % frame.index.name
+    def _get_db_table_name(self, frame):
+        """Returns the MySQL TABLE name for the given pandas.DataFrame.
+        frame: pandas.DataFrame.
+        """
+        return self._table_prefix + self._get_db_name(frame.index.name)
 
-def get_db_replace_values(frame, ticker):
-    """Returns the MySQL REPLACE INTO statement for the given pandas.DataFrame.
-    frame: pandas.DataFrame.
-    """
-    columns = ['`ticker`', '`period`'] +\
-      ['`%s`' % get_db_name(name) for name in frame.index.values]
-    return \
-      'REPLACE INTO %s\n' % get_db_table_name(frame) +\
-      '  (%s)\nVALUES\n' % ',\n   '.join(columns) +\
-      ',\n'.join([
-          '  ("' + ticker + '", "' + column.strftime('%Y-%m-%d') + '", ' +
-          ', '.join(['NULL' if np.isnan(x) else '%.2f' % x
-                     for x in frame[column].values]) +
-          ')' for column in frame.columns])
+    def _get_db_create_table(self, frame):
+        """Returns the MySQL CREATE TABLE statement for the given
+        pandas.DataFrame.
+        frame: pandas.DataFrame.
+        """
+        columns = ',\n'.join([
+            '  `%s` DECIMAL(20,5) DEFAULT NULL COMMENT "%s"' %\
+            (self._get_db_name(name), name) for name in frame.index.values])
+        table_name = self._get_db_table_name(frame)
+        return \
+          'CREATE TABLE `%s` (\n' % table_name +\
+          '  `ticker` VARCHAR(50) NOT NULL COMMENT "Exchange:Ticker",\n' +\
+          '  `period` DATE NOT NULL COMMENT "Period",\n' +\
+          '%s,\n' % columns +\
+          '  PRIMARY KEY USING BTREE (`ticker`, `period`),\n' +\
+          '  KEY `ix_ticker` USING BTREE (`ticker`))\n' +\
+          'ENGINE=MyISAM DEFAULT CHARSET=utf8\n' +\
+          'COMMENT = "%s"' % frame.index.name
 
-def db_execute(conn, query):
+    def _get_db_replace_values(self, ticker, frame):
+        """Returns the MySQL REPLACE INTO statement for the given
+        Morningstar ticker and the corresponding pandas.DataFrame.
+        ticker: Morningstar ticker.
+        frame: pandas.DataFrame.
+        """
+        columns = ['`ticker`', '`period`'] +\
+          ['`%s`' % self._get_db_name(name) for name in frame.index.values]
+        return \
+          'REPLACE INTO `%s`\n' % self._get_db_table_name(frame) +\
+          '  (%s)\nVALUES\n' % ',\n   '.join(columns) +\
+          ',\n'.join([
+              '("' + ticker + '", "' + column.strftime('%Y-%m-%d') + '", ' +
+              ', '.join(['NULL' if np.isnan(x) else '%.5f' % x
+                         for x in frame[column].values]) +
+              ')' for column in frame.columns])
+
+class FinancialsDownloader(object):
+    """Downloads financials from http://financials.morningstar.com/
+    """
+    def __init__(self, table_prefix = 'morningstar_'):
+        """Constructs the FinancialsDownloader instance.
+        table_prefix: Prefix of the MySQL tables.
+        """
+        self._table_prefix = table_prefix
+
+    def download(self, ticker, conn = None):
+        """Downloads and returns a dictionary containing pandas.DataFrames
+        representing the financials (i.e. income statement, balance sheet,
+        cash flow) for the given Morningstar ticker. If the MySQL connection
+        is specified then the downloaded financials are uploaded to the MySQL
+        database.
+        ticker: Morningstar ticker.
+        conn: MySQLdb connection.
+        """
+        result = {}
+        for report_type, table_name in [
+            ('is', 'income_statement'),
+            ('bs', 'balance_sheet'),
+            ('cf', 'cash_flow')]:
+            frame = self._download(ticker, report_type)
+            result[table_name] = frame
+            if conn: self._upload_frame(
+                frame, ticker, self._table_prefix + table_name, conn)
+        if conn: self._upload_unit(ticker, self._table_prefix + 'unit', conn)
+        result['period_range'] = self._period_range
+        result['fiscal_year_end'] = self._fiscal_year_end
+        result['currency'] = self._currency
+        return result
+
+    def _download(self, ticker, report_type):
+        """Downloads and returns a pandas.DataFrame corresponding to the
+        given Morningstar ticker and the given type of the report.
+        ticker: Morningstar ticker.
+        report_type: Type of the report ('is', 'bs', 'cf').
+        """
+        url = r"http://financials.morningstar.com/ajax/" +\
+            r"ReportProcess4HtmlAjax.html?&t=" + ticker +\
+            r"&region=usa&culture=en-US&cur=USD" +\
+            r"&reportType=" + report_type + r"&period=12" +\
+            r"&dataType=A&order=asc&columnYear=5&rounding=3&view=raw"
+        response = json.loads(urllib2.urlopen(url).read())
+        return self._parse(BeautifulSoup(response['result']))
+
+    def _parse(self, soup):
+        """Extracts and returns a pandas.DataFrame corresponding to the
+        given parsed HTML repsonse from the financials.morningstar.com.
+        soup: Parsed HTML response by BeautifulSoup.
+        """
+        # left node contains the labels
+        left = soup.find('div', 'left').div
+        # main node contains the (raw) data
+        main = soup.find('div', 'main').find('div', 'rf_table')
+        year = main.find('div', {'id': 'Year'})
+        self._year_ids = [node.attrs['id'] for node in year]
+        period_month = pd.datetime.strptime(
+            year.div.text, '%Y-%m').month
+        self._period_range = pd.period_range(year.div.text,
+            periods=len(self._year_ids),
+            freq=pd.datetools.YearEnd(month=period_month))
+        unit = left.find('div', {'id': 'unitsAndFiscalYear'})
+        self._fiscal_year_end = int(unit.attrs['fyenumber'])
+        self._currency = unit.attrs['currency']
+        self._data = []
+        self._label_index = 0
+        self._read_labels(left)
+        self._data_index = 0
+        self._read_data(main)
+        return pd.DataFrame(self._data,
+            columns=['parent_index', 'title'] +
+            list(self._period_range))
+
+    def _read_labels(self, root_node, parent_label_index = None):
+        """Recursively reads labels from the parsed HTML response.
+        """
+        for node in root_node:
+            if node.has_attr('class') and\
+                'r_content' in node.attrs['class']:
+                self._read_labels(node, self._label_index - 1)
+            if node.has_attr('id') and\
+                node.attrs['id'].startswith('label') and\
+                not node.attrs['id'].endswith('padding') and\
+                ((not node.has_attr('style')) or
+                 ('display:none' not in node.attrs['style'])):
+                label_id = node.attrs['id'][6:]
+                label_title = node.div.attrs['title']\
+                    if node.div.has_attr('title')\
+                    else node.div.text
+                self._data.append({
+                    'id': label_id,
+                    'index': self._label_index,
+                    'parent_index': parent_label_index
+                        if parent_label_index is not None
+                        else self._label_index,
+                    'title': label_title})
+                self._label_index += 1
+
+    def _read_data(self, root_node):
+        """Recursively reads data from the parsed HTML response.
+        """
+        for node in root_node:
+            if node.has_attr('class') and\
+                'r_content' in node.attrs['class']:
+                self._read_data(node)
+            if node.has_attr('id') and\
+                node.attrs['id'].startswith('data') and\
+                not node.attrs['id'].endswith('padding') and\
+                ((not node.has_attr('style')) or
+                 ('display:none' not in node.attrs['style'])):
+                data_id = node.attrs['id'][5:]
+                assert(self._data[self._data_index]['id'] == data_id)
+                for (i, child) in enumerate(node.children):
+                    try:
+                        value = float(child.attrs['rawvalue'])
+                    except ValueError:
+                        value = None
+                    self._data[self._data_index][
+                        self._period_range[i]] = value
+                self._data_index += 1
+
+    def _upload_frame(self, frame, ticker, table_name, conn):
+        """Uploads the given pandas.DataFrame to the MySQL database.
+        frame: pandas.DataFrames to be uploaded.
+        ticker: Morningstar ticker.
+        table_name: Name of the MySQL table.
+        conn: MySQLdb connection.
+        """
+        if not _db_table_exists(table_name, conn):
+            _db_execute(self._get_db_create_table(table_name), conn)
+        _db_execute(self._get_db_replace_values(
+            ticker, frame, table_name), conn)
+
+    def _upload_unit(self, ticker, table_name, conn):
+        """Uploads the fiscal_year_end and the currency to the MySQL database.
+        ticker: Morningstar ticker.
+        table_name: Name of the MySQL table.
+        conn: MySQLdb connection.
+        """
+        if not _db_table_exists(table_name, conn):
+            _db_execute(
+                'CREATE TABLE `%s` (\n' % table_name +\
+                '  `ticker` varchar(50) NOT NULL\n' +\
+                '    COMMENT "Exchange:Ticker",\n' +\
+                '  `fiscal_year_end` int(10) unsigned NOT NULL\n' +\
+                '    COMMENT  "Fiscal Year End Month",\n' +\
+                '  `currency` varchar(50) NOT NULL\n' +\
+                '    COMMENT "Currency",\n' +\
+                '  PRIMARY KEY USING BTREE (`ticker`))\n' +\
+                'ENGINE=MyISAM DEFAULT CHARSET=utf8', conn)
+        _db_execute(
+            'REPLACE INTO `%s`\n' % table_name +\
+            '  (`ticker`, `fiscal_year_end`, `currency`)\nVALUES\n' +\
+            '("%s", %d, "%s")' % (
+                ticker, self._fiscal_year_end, self._currency), conn)
+
+    def _get_db_create_table(self, table_name):
+        """Returns the MySQL CREATE TABLE statement for the given
+        table table_name.
+        table_name: Name of the MySQL table.
+        """
+        year = date.today().year
+        year_range = range(year - 6, year + 1)
+        columns = ',\n'.join([
+            '  `year_%d` DECIMAL(20,5) DEFAULT NULL ' % year + 
+            'COMMENT "Year %d"' % year
+            for year in year_range])
+        return \
+          'CREATE TABLE `%s` (\n' % table_name +\
+          '  `ticker` VARCHAR(50) NOT NULL COMMENT "Exchange:Ticker",\n' +\
+          '  `id` int(10) unsigned NOT NULL COMMENT "Id",\n' +\
+          '  `parent_id` int(10) unsigned NOT NULL COMMENT "Parent Id",\n' +\
+          '  `item` varchar(500) NOT NULL COMMENT "Item",\n' +\
+          '%s,\n' % columns +\
+          '  PRIMARY KEY USING BTREE (`ticker`, `id`),\n' +\
+          '  KEY `ix_ticker` USING BTREE (`ticker`))\n' +\
+          'ENGINE=MyISAM DEFAULT CHARSET=utf8'
+
+    def _get_db_replace_values(self, ticker, frame, table_name):
+        """Returns the MySQL REPLACE INTO statement for the given
+        Morningstar ticker and the corresponding pandas.DataFrame.
+        ticker: Morningstar ticker.
+        frame: pandas.DataFrame.
+        table_name: Name of the MySQL table.
+        """
+        columns = ['`ticker`', '`id`, `parent_id`, `item`'] +\
+            ['`year_%d`' % period.year for period in frame.columns[2:]]
+        return \
+          'REPLACE INTO `%s`\n' % table_name +\
+          '  (%s)\nVALUES\n' % ', '.join(columns) +\
+          ',\n'.join([
+              '("' + ticker + '", %d, %d, "%s", ' % 
+              (index, frame.ix[index, 'parent_index'],
+                      frame.ix[index, 'title']) +\
+              ', '.join(['NULL' if np.isnan(frame.ix[index, period])
+                         else '%.5f' % frame.ix[index, period]
+                         for period in frame.columns[2:]]) +\
+              ')' for index in frame.index])
+
+def _db_table_exists(table_name, conn):
+    """MySQLdb helper method to check whether a MySQL table exists.
+    table_name: Name of the MySQL table to be checked.
+    conn: MySQLdb connection.
+    """
+    dbcur = conn.cursor()
+    dbcur.execute("""
+        SELECT COUNT(*)
+        FROM information_schema.tables
+        WHERE table_name = '{0}'
+        """.format(table_name))
+    if dbcur.fetchone()[0] == 1:
+        dbcur.close()
+        return True
+    dbcur.close()
+    return False
+
+def _db_execute(query, conn):
     """MySQLdb helper method to execute a MySQL query.
+    query: MySQL query to be executed.
+    conn: MySQLdb connection.
     """
-    cursor = conn.cursor()
-    cursor.execute(query)
-    cursor.close()
+    dbcur = conn.cursor()
+    dbcur.execute(query)
+    dbcur.close()
