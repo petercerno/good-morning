@@ -2,13 +2,11 @@
 Good Morning
 ============
 
-Good Morning is a simple Python module for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/). It will work as long as the structure of the responses from [financials.morningstar.com](http://financials.morningstar.com/) does not change.
-
-Bitcoin Donation Address: `15p4RbBxbfWYE91wcd3JzuJFj6e1jJeqyU`
+Good Morning is a simple Python module for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/). It will work as long as the structure of the responses from [financials.morningstar.com](http://financials.morningstar.com/) do not change.
 
 **Prerequisites:** 
 
-- [Python 2.7](https://www.python.org/download/releases/2.7/), [BeautifulSoup](http://www.crummy.com/software/BeautifulSoup/bs4/doc/), [csv](https://docs.python.org/2/library/csv.html), [json](https://docs.python.org/2/library/json.html) [MySQLdb](http://sourceforge.net/projects/mysql-python/), [NumPy](http://www.numpy.org/), [Pandas](http://pandas.pydata.org/), [re](https://docs.python.org/2/library/re.html), [urllib2](https://docs.python.org/2/library/urllib2.html).
+- [Python 3](https://www.python.org/), [bs4](http://www.crummy.com/software/BeautifulSoup/bs4/doc/), [csv](https://docs.python.org/3/library/csv.html), [datetime](https://docs.python.org/3/library/datetime.html), [http.client](https://docs.python.org/3/library/http.client.html), [json](https://docs.python.org/3/library/json.html), [numpy](http://www.numpy.org/), [pandas](http://pandas.pydata.org/), [pymysql](https://pypi.python.org/pypi/PyMySQL), [re](https://docs.python.org/3/library/re.html), [urllib.request](https://docs.python.org/3/library/urllib.request.html).
 
 Motivation
 ==========
@@ -40,8 +38,8 @@ Outputs:
 
 If we specify the MySQL connection `conn` the retrieved data will be uploaded to the MySQL database:
 
-    import MySQLdb
-    conn = MySQLdb.connect(
+    import pymysql
+    conn = pymysql.connect(
         host = DB_HOST, user = DB_USER, passwd = DB_PASS, db = DB_NAME)
     kr_frames = kr.download('AAPL', conn)
 
@@ -87,7 +85,7 @@ Available Classes
 
 There are two classes in `good_morning`:
 
-- `KeyRatiosDownloader` - Used to download key ratios. Key ratios have the same structure across all Morningstar tickers.
+- `KeyRatiosDownloader` - Used to download key ratios. Key ratios share the same structure across all Morningstar tickers.
 - `FinancialsDownloader` - Used to download financials (i.e. income statement, balance sheet, cash flow). Financials may differ in structure across the Morningstar tickers.
 
 LICENSE
