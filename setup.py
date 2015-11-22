@@ -25,8 +25,8 @@ setup(
     version='0.1.0',
 
     description='Simple Python module for downloading fundamental financial data from financials.morningstar.com.',
-    long_description='Good Morning is intended to be used as an extension to QSToolKit (QSTK) library. By using QSTK you can easily download historical stock market data from Yahoo Finance. You can also download fundamental financial data from Compustat. However, most individuals and institutions do not have access to Compustat. Good Morning attempts to mitigate this limitation by providing a very simple Python interface for downloading fundamental financial data from financials.morningstar.com.',
-
+    long_description=long_description,
+    
     # The project's main homepage.
     url='https://github.com/petercerno/good-morning',
 
