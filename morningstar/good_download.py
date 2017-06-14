@@ -21,9 +21,11 @@
 financials.morningstar.com for all tickers in S&P 500 (October 2015).
 """
 
-import pymysql
 import time
-import good_morning as gm
+
+import pymysql
+
+from morningstar import good_morning as gm
 
 DB_HOST = 'db_host'
 DB_USER = 'db_user'

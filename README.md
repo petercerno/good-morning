@@ -2,7 +2,7 @@
 Good Morning
 ============
 
-Good Morning is a simple Python module for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/). It will work as long as the structure of the responses from [financials.morningstar.com](http://financials.morningstar.com/) do not change.
+Good Morning (morningstar) is a simple Python module for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/). It will work as long as the structure of the responses from [financials.morningstar.com](http://financials.morningstar.com/) do not change.
 
 **Prerequisites:** 
 
