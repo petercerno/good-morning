@@ -10,11 +10,9 @@ from setuptools import setup
 
 cwd = os.path.abspath(os.path.dirname(__file__))
 
-
 def read(filename):
     with codecs.open(os.path.join(cwd, filename), 'rb', 'utf-8') as h:
         return h.read()
-
 
 metadata = read(os.path.join(cwd, 'morningstar', '__init__.py'))
 

@@ -23,9 +23,7 @@
 """Download historical MorningStart data."""
 
 from __future__ import absolute_import
-from __future__ import absolute_import
 
-#from gdelt.base import gdelt
 from morningstar.good_morning import KeyRatiosDownloader,FinancialsDownloader
 
 __name__ = 'morningstar'
