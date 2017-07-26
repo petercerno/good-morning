@@ -25,7 +25,7 @@ import time
 
 import pymysql
 
-from morningstar import good_morning as gm
+from good_morning import good_morning as gm
 
 DB_HOST = 'db_host'
 DB_USER = 'db_user'

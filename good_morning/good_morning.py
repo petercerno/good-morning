@@ -20,17 +20,13 @@
 """Module for downloading financial data from financials.morningstar.com.
 """
 
-from __future__ import with_statement
-from __future__ import absolute_import
 import csv
-import http.client
 import json
 import numpy as np
 import pandas as pd
-import pymysql
 import re
 import urllib.request
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 from datetime import date
 
 class KeyRatiosDownloader(object):
@@ -56,10 +52,10 @@ class KeyRatiosDownloader(object):
         :param conn: MySQL connection.
         :return: List of pandas.DataFrames containing the key ratios.
         """
-        url = (ur'http://financials.morningstar.com/ajax/exportKR2CSV.html?' +
-               ur'&callback=?&t={0}&region=usa&culture=en-US&cur=USD'.format(
+        url = (r'http://financials.morningstar.com/ajax/exportKR2CSV.html?' +
+               r'&callback=?&t={0}&region=usa&culture=en-US&cur=USD'.format(
                    ticker))
-        with urllib2.urlopen(url) as response:
+        with urllib.request.urlopen(url) as response:
             tables = self._parse_tables(response)
             response_structure = [
                 # Original Name, New pandas.DataFrame Name
@@ -78,6 +74,21 @@ class KeyRatiosDownloader(object):
                  u'Key Liquidity/Financial Health'),
                 (u'Key Ratios -> Efficiency Ratios', u'Key Efficiency Ratios')]
             frames = self._parse_frames(tables, response_structure)
+
+            ############################
+            # Error Handling for Ratios
+            ############################
+
+            # Empty String
+            if len(ticker) == 0:
+                raise ValueError("You did not enter a ticker symbol.  Please"
+                                 " try again.")
+            # Wrong ticker symbol
+            elif frames == "MorningStar could not find the ticker":
+                raise ValueError("MorningStar cannot find the ticker symbol "
+                                 "you entered or it is INVALID. Please try "
+                                 "again.")
+
             currency = re.match(u'^.* ([A-Z]+) Mil$',
                                 frames[0].index[0]).group(1)
             frames[0].index.name += u' ' + currency
@@ -96,7 +107,7 @@ class KeyRatiosDownloader(object):
         """
         # Regex pattern used to recognize csv lines containing financial data.
         num_commas = 5
-        pat_commas = ur'(.*,){%d,}' % num_commas
+        pat_commas = r'(.*,){%d,}' % num_commas
         # Resulting array of pairs (table_name, table_frame).
         tables = []
         table_name = None
@@ -126,6 +137,15 @@ class KeyRatiosDownloader(object):
         :param response_structure: List of pairs (expected table name, new name
         assigned to the corresponding (processed) pandas.DataFrame).
         """
+
+        #############################
+        # Error Handling
+        #############################
+
+        # Fail Early on Empty String
+        if len(tables) == 0:
+            return ("MorningStar could not find the ticker")
+
         period_start = tables[0][1].ix[0][1]
         period_month = pd.datetime.strptime(period_start, u'%Y-%m').month
         #period_freq = pd.datetools.YearEnd(month=period_month)
@@ -157,7 +177,7 @@ class KeyRatiosDownloader(object):
                                                periods=len(output_frame.ix[0]),
                                                freq=period_freq)
         output_frame.columns.name = u'Period'
-        if re.match(ur'^\d{4}-\d{2}$', output_frame.ix[0][0]):
+        if re.match(r'^\d{4}-\d{2}$', output_frame.ix[0][0]):
             output_frame.drop(output_frame.index[0], inplace=True)
         output_frame.replace(u',', u'', regex=True, inplace=True)
         output_frame.replace(u'^\s*$', u'NaN', regex=True, inplace=True)
@@ -188,8 +208,8 @@ class KeyRatiosDownloader(object):
                 .replace(u'/', u' per ')
                 .replace(u'&', u' and ')
                 .replace(u'%', u' percent '))
-        name = re.sub(ur'[^a-z0-9]', u' ', name)
-        name = re.sub(ur'\s+', u' ', name).strip()
+        name = re.sub(r'[^a-z0-9]', u' ', name)
+        name = re.sub(r'\s+', u' ', name).strip()
         return name.replace(u' ', u'_')
 
     def _get_db_table_name(self, frame):
@@ -267,6 +287,16 @@ class FinancialsDownloader(object):
         financials for the given Morningstar ticker.
         """
         result = {}
+
+        ##########################
+        # Error Handling
+        ##########################
+
+        # Empty String
+        if len(ticker) == 0:
+            raise ValueError("You did not enter a ticker symbol.  Please"
+                             " try again.")
+
         for report_type, table_name in [
                 (u'is', u'income_statement'),
                 (u'bs', u'balance_sheet'),
@@ -292,13 +322,24 @@ class FinancialsDownloader(object):
         :return  pandas.DataFrame corresponding to the given Morningstar ticker
         and the given type of the report.
         """
-        url = (ur'http://financials.morningstar.com/ajax/' +
-               ur'ReportProcess4HtmlAjax.html?&t=' + ticker +
-               ur'&region=usa&culture=en-US&cur=USD' +
-               ur'&reportType=' + report_type + ur'&period=12' +
-               ur'&dataType=A&order=asc&columnYear=5&rounding=3&view=raw')
-        with urllib2.urlopen(url) as response:
+        url = (r'http://financials.morningstar.com/ajax/' +
+               r'ReportProcess4HtmlAjax.html?&t=' + ticker +
+               r'&region=usa&culture=en-US&cur=USD' +
+               r'&reportType=' + report_type + r'&period=12' +
+               r'&dataType=A&order=asc&columnYear=5&rounding=3&view=raw')
+        with urllib.request.urlopen(url) as response:
             json_text = response.read().decode(u'utf-8')
+
+            ##############################
+            # Error Handling
+            ##############################
+
+            # Wrong ticker
+            if len(json_text)==0:
+                raise ValueError("MorningStar cannot find the ticker symbol "
+                                 "you entered or it is INVALID. Please try "
+                                 "again.")
+
             json_data = json.loads(json_text)
             result_soup = BeautifulSoup(json_data[u'result'],u'html.parser')
             return self._parse(result_soup)
