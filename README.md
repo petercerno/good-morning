@@ -39,7 +39,7 @@ Outputs:
 Example of Downloading Financial data 
 =====================================
 
-    import morningstar as gm
+    import good_morning as gm
     kr = gm.FinancialsDownloader()
     kr_fins = kr.download('AAPL')
     
