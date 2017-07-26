@@ -14,7 +14,7 @@ def read(filename):
     with codecs.open(os.path.join(cwd, filename), 'rb', 'utf-8') as h:
         return h.read()
 
-metadata = read(os.path.join(cwd, 'morningstar', '__init__.py'))
+metadata = read(os.path.join(cwd, 'good_morning', '__init__.py'))
 
 
 def extract_metaitem(meta):
@@ -28,7 +28,7 @@ def extract_metaitem(meta):
 
 
 setup(
-    name='morningstar',
+    name='good_morning',
     version=extract_metaitem('version'),
     license=extract_metaitem('license'),
     description=extract_metaitem('description'),
@@ -42,14 +42,14 @@ setup(
     url=extract_metaitem('url'),
     # download_url=extract_metaitem('download_url'),
     platforms=['Any'],
-    packages=['morningstar'],
+    packages=['good_morning'],
     install_requires=['numpy', 'pandas', 'pymysql',
                       'python-dateutil','beautifulsoup4',
                       'mock;python_version<"3.3"',
                       "futures; python_version < '3.0'",
                       "futures>=3.0.5; python_version == '2.6' or python_version=='2.7'"
                       ],
-    keywords='stocks morningstar financial data historical',
+    keywords='stocks good_morning financial data historical',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Financial and Insurance Industry',
@@ -57,9 +57,6 @@ setup(
         'Operating System :: OS Independent',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Office/Business :: Financial',
-        'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5'
     ],

@@ -13,8 +13,8 @@ Motivation
 
 Good Morning is intended to be used as an extension to [QSToolKit (QSTK)](http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit) library. By using [QSTK](http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit) you can easily download historical stock market data from [Yahoo Finance](http://finance.yahoo.com/). You can also download fundamental financial data from [Compustat](https://www.capitaliq.com/home/what-we-offer/information-you-need/financials-valuation/compustat-financials.aspx). However, most individuals and institutions do not have access to [Compustat](https://www.capitaliq.com/home/what-we-offer/information-you-need/financials-valuation/compustat-financials.aspx). Good Morning attempts to mitigate this limitation by providing a very simple Python interface for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/).
 
-Example
-=======
+Example of Downloading Key Ratios from MorningStar
+==================================================
 
     import good_morning as gm
     kr = gm.KeyRatiosDownloader()
@@ -36,7 +36,25 @@ Outputs:
     Earnings Per Share USD            0.22      0.32      0.56 ...
     ...
 
-If we specify the MySQL connection `conn` the retrieved data will be uploaded to the MySQL database:
+Example of Downloading Financial data 
+=====================================
+
+    import morningstar as gm
+    kr = gm.FinancialsDownloader()
+    kr_fins = kr.download('AAPL')
+    
+Different from the `KeyRatiosDownloader` class,  `kr_fins` now holds a dictionary containing the financials for the morningstar ticker [`AAPL`](http://financials.morningstar.com/ratios/r.html?t=AAPL&region=usa&culture=en-US). The financials **may differ** from company to company.
+
+    print (fins.keys())
+    
+Output:
+
+    dict_keys(['income_statement', 'balance_sheet', 'cash_flow', 'period_range', 'fiscal_year_end', 'currency'])
+
+Storing Good Morning Data in a Database 
+======================================================
+
+We can also store this data in a relational database.  If we specify the MySQL connection `conn` the retrieved data will be uploaded to the MySQL database:
 
     import pymysql
     conn = pymysql.connect(
@@ -79,6 +97,23 @@ Where the columns are:
     cap_ex_as_a_percent_of_sales
     free_cash_flow_per_sales_percent
     free_cash_flow_per_net_income
+
+Unit Tests
+----------
+
+We include unittest to troubleshoot your use of the library.  It's a simple command line process to run the test. Navigate to the base directory of `good-morning` and use the standard library `unittest` command line interface:
+
+    python -m unittest test/
+    
+Output:
+
+    ----------------------------------------------------------------------
+    Ran 3 tests in 0.626s
+    
+    OK
+
+If you see anything other than this, you should get an error report. Before submitting an issue, run the test and try to paste the output if the error persists.
+
 
 Available Classes
 -----------------

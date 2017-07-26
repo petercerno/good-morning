@@ -18,14 +18,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 """Example showing how to download financial data from
-financials.morningstar.com for all tickers in S&P 500 (October 2015).
+financials.good_morning.com for all tickers in S&P 500 (October 2015).
 """
 
 import time
 
 import pymysql
 
-from morningstar import good_morning as gm
+from good_morning import good_morning as gm
 
 DB_HOST = 'db_host'
 DB_USER = 'db_user'

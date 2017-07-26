@@ -24,12 +24,12 @@
 
 from __future__ import absolute_import
 
-from morningstar.good_morning import KeyRatiosDownloader,FinancialsDownloader
+from good_morning.good_morning import KeyRatiosDownloader,FinancialsDownloader
 
-__name__ = 'morningstar'
+__name__ = 'good_morning'
 __author__ = 'Peter Cerno'
 __email__ = 'petercerno@gmail.com'
 __license__ = 'MIT.X11'
 __version__ = '0.1.0'
 __url__ = 'https://github.com/petercerno/good-morning'
-__description__ = 'Good Morning (morningstar) is a simple Python module for downloading fundamental financial data from [financials.morningstar.com](http://financials.morningstar.com/).'
+__description__ = 'Good Morning (good_morning) is a simple Python module for downloading fundamental financial data from [financials.good_morning.com](http://financials.good_morning.com/).'
