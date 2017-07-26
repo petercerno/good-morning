@@ -17,7 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""Module for downloading financial data from financials.good_morning.com.
+"""Module for downloading financial data from financials.morningstar.com.
 """
 
 import csv
@@ -30,7 +30,7 @@ from bs4 import BeautifulSoup
 from datetime import date
 
 class KeyRatiosDownloader(object):
-    u"""Downloads key ratios from http://financials.good_morning.com/
+    u"""Downloads key ratios from http://financials.morningstar.com/
     """
 
     def __init__(self, table_prefix = u'morningstar_'):
@@ -98,9 +98,9 @@ class KeyRatiosDownloader(object):
 
     @staticmethod
     def _parse_tables(response):
-        u"""Parses the given csv response from financials.good_morning.com.
+        u"""Parses the given csv response from financials.morningstar.com.
 
-        :param response: Response from financials.good_morning.com.
+        :param response: Response from financials.morningstar.com.
         :return: List of pairs, where the first item is the name of the table
         (extracted from the response) and the second item is the corresponding
         pandas.DataFrame table containing the data.
@@ -264,7 +264,7 @@ class KeyRatiosDownloader(object):
 
 
 class FinancialsDownloader(object):
-    u"""Downloads financials from http://financials.good_morning.com/
+    u"""Downloads financials from http://financials.morningstar.com/
     """
 
     def __init__(self, table_prefix = u'morningstar_'):
@@ -346,11 +346,11 @@ class FinancialsDownloader(object):
 
     def _parse(self, soup):
         u"""Extracts and returns a pandas.DataFrame corresponding to the
-        given parsed HTML response from financials.good_morning.com.
+        given parsed HTML response from financials.morningstar.com.
 
         :param soup: Parsed HTML response by BeautifulSoup.
         :return pandas.DataFrame corresponding to the given parsed HTML response
-        from financials.good_morning.com.
+        from financials.morningstar.com.
         """
         # Left node contains the labels.
         left = soup.find(u'div', u'left').div

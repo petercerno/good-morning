@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 """Example showing how to download financial data from
-financials.good_morning.com for all tickers in S&P 500 (October 2015).
+financials.morningstar.com for all tickers in S&P 500 (October 2015).
 """
 
 import time
