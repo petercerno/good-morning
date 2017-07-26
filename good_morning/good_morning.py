@@ -76,7 +76,7 @@ class KeyRatiosDownloader(object):
             frames = self._parse_frames(tables, response_structure)
 
             ############################
-            # Error Handling
+            # Error Handling for Ratios
             ############################
 
             # Empty String
