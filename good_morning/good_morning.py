@@ -40,7 +40,7 @@ class KeyRatiosDownloader(object):
         """
         self._table_prefix = table_prefix
 
-    def download(self, ticker, conn = None, region='GBR', culture='en_US', currency='USD'):
+    def download(self, ticker, conn = None, region = 'GBR', culture = 'en_US', currency = 'USD'):
         u"""Downloads and returns key ratios for the given Morningstar ticker.
 
         Downloads and returns an array of pandas.DataFrames containing the key
