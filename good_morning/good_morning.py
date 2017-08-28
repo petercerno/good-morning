@@ -50,6 +50,9 @@ class KeyRatiosDownloader(object):
 
         :param ticker: Morningstar ticker.
         :param conn: MySQL connection.
+        :param region: Sets the region.
+        :param culture: Sets culture.
+        :param currency: Sets currency.
         :return: List of pandas.DataFrames containing the key ratios.
         """
         url = (r'http://financials.morningstar.com/ajax/exportKR2CSV.html?' +
