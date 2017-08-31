@@ -40,7 +40,7 @@ class KeyRatiosDownloader(object):
         """
         self._table_prefix = table_prefix
 
-    def download(self, ticker, conn = None):
+    def download(self, ticker, conn = None, region = 'GBR', culture = 'en_US', currency = 'USD'):
         u"""Downloads and returns key ratios for the given Morningstar ticker.
 
         Downloads and returns an array of pandas.DataFrames containing the key
@@ -50,11 +50,14 @@ class KeyRatiosDownloader(object):
 
         :param ticker: Morningstar ticker.
         :param conn: MySQL connection.
+        :param region: Sets the region.
+        :param culture: Sets culture.
+        :param currency: Sets currency.
         :return: List of pandas.DataFrames containing the key ratios.
         """
         url = (r'http://financials.morningstar.com/ajax/exportKR2CSV.html?' +
-               r'&callback=?&t={0}&region=usa&culture=en-US&cur=USD'.format(
-                   ticker))
+               r'&callback=?&t={t}&region={reg}&culture={cult}&cur={cur}'.format(
+                   t=ticker, reg=region, cult=culture, cur=currency))
         with urllib.request.urlopen(url) as response:
             tables = self._parse_tables(response)
             response_structure = [
